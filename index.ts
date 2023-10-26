@@ -405,7 +405,6 @@ const transcriptionEventHandler = async (event: AudioBytesEvent) => {
     .filter(item => item !== null)  // Remove any null values
     .filter(item => {
       if (!Buffer.isBuffer(item)) {
-        // Suppressed console.error
         return false;
       }
       return true;
