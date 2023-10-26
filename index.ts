@@ -133,7 +133,8 @@ async function voiceActivityDetection(audioBuffer: any) {
 
   // Check if audioBuffer has 'raw' key
   if (audioBuffer && typeof audioBuffer === 'object' && audioBuffer.raw) {
-    return await python`vad_function(${audioBuffer.raw})`;
+    const base64EncodedBuffer = audioBuffer.raw.toString('base64');
+    return await python`vad_function(${base64EncodedBuffer})`;
   } else {
     console.error("Error: audioBuffer does not contain 'raw' key");
     return false;
@@ -285,6 +286,7 @@ const newAudioBytesEvent = (buffer: Buffer): void => {
 
 let transcriptionMutex = false;
 const transcriptionEventHandler = async (event: AudioBytesEvent) => {
+
   // TODO: Unbounded linear growth. Instead, walk backwards or something.
   const lastCut = getCutTimestamp();
   const audioBytesEvents = eventlog.events.filter(e => e.eventType === 'audioBytes' && e.timestamp >= lastCut);
@@ -301,8 +303,18 @@ const transcriptionEventHandler = async (event: AudioBytesEvent) => {
         return responseInputEventHandler();
     }
   }
+
+  const buffersToConcatenate = audioBytesEvents
+    .filter(event => typeof event.data.buffer.raw === 'string')
+    .map(event => Buffer.from(event.data.buffer.raw, 'base64'))
+    .filter(item => Buffer.isBuffer(item));
+  
   const joinedBuffer = Buffer.concat(
-    audioBytesEvents.map((event) => Buffer.from(event.data.buffer.raw, 'base64'))
+    // @ts-ignore
+    audioBytesEvents.filter(event => typeof event.data.buffer.raw === 'string').map((event) => {
+      console.log(typeof event.data.buffer.raw, event.data.buffer.raw.substring(0, 50) + '...');
+      return Buffer.from(event.data.buffer.raw, 'base64');
+    })
   );
 
 
@@ -466,6 +478,7 @@ const audioProcess = spawn('bash', [audioListenerScript]);
 audioProcess.stdout.on('readable', () => {
   let data;
   while (data = audioProcess.stdout.read()) {
+    console.log('Data type:', typeof data, data);
     newAudioBytesEvent(data);
   }
 });
