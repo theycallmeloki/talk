@@ -5,8 +5,8 @@ const { audioListenerScript } = config;
 import { talk } from './src/talk';
 import { Mutex } from './src/depedenciesLibrary/mutex';
 import { pythonBridge } from 'python-bridge';
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
 fs.writeFileSync('events.json', '[]');
 
 let python = pythonBridge({
