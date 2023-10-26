@@ -16,6 +16,8 @@ Thurs Oct 25 2023 - Loki
 - 1. drop whisper.cpp, llama.cpp
   2. implement llama-cpp-python[server] as a drop in replacement for a openai-compatible rest client so we can resume gguf model support
   3. tweak hyperparameters in sampling until performance/response cohesivity improves
+ 
+     
 Wed Jun 21 2023
 - Talk now uses an event based architecture
 - Set up still isn't straightforward. We'll give this a pass
