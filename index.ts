@@ -118,17 +118,10 @@ let python = pythonBridge({
 });
 
 (async () => {
-  (python`print(${"Booting up python..."})` as any);
   try {
-    // Execute the entire pythonCode to initialize the environment
-    await python.ex`import sys`;
-    await python.ex`import numpy as np`;
-    await python.ex(pythonCode);
-
-    // Now, you can call functions defined in pythonCode
-    await python`init_model(${"openai/whisper-large-v2"})`;
-
-
+    console.log("Booting up python...");
+    await python.ex(pythonCode);  // Execute the entire pythonCode to initialize the environment
+    await python.ex`init_model("openai/whisper-large-v2")`;  // Initialize the ASR model
   } catch (error) {
     console.error("Error during Python initialization:", error);
   }
@@ -249,7 +242,7 @@ async function voiceActivityDetection(audioBuffer: any) {
   // Check if audioBuffer has 'raw' key
   if (audioBuffer && Buffer.isBuffer(audioBuffer)) {
     const base64EncodedBuffer = audioBuffer.toString('base64');
-    return await python`vad_function(${base64EncodedBuffer})`;
+    return await python.ex`vad_function(${base64EncodedBuffer})`;
   } else {
     // Suppressed console.error
     return false;
@@ -267,9 +260,7 @@ async function asrInference(audioBuffer: any) {
 
   // Convert audioBuffer to numpy ndarray if it's a dictionary with 'raw' key
   if (audioBuffer && Buffer.isBuffer(audioBuffer)) {
-    return await python`
-
-      buffer_np = np.frombuffer(${audioBuffer}, dtype=np.int16)
+    return await python.ex`buffer_np = np.frombuffer(${audioBuffer}, dtype=np.int16)
       asr_inference(buffer_np)
     `;
   } else {
@@ -472,7 +463,7 @@ const transcriptionEventHandler = async (event: AudioBytesEvent) => {
   if (!transcriptionMutex && joinedBuffer.length > ONE_SECOND) {
     try {
       transcriptionMutex = true;
-      const rawTranscription = await asrInference(joinedBuffer);
+      const rawTranscription = await asrInference(joinedBuffer) || "";
 
       let transcription = rawTranscription.replace(/\s*\[[^\]]*\]\s*|\s*\([^)]*\)\s*/g, ''); // clear up text in brackets
       transcription = transcription.replace(/[^a-zA-Z0-9\.,\?!\s\:\'\-]/g, ""); // retain only alphabets chars and punctuation
