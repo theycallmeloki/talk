@@ -5,10 +5,25 @@ const { audioListenerScript } = config;
 import { talk } from './src/talk';
 import { Mutex } from './src/depedenciesLibrary/mutex';
 import { pythonBridge } from 'python-bridge';
+const fs = require('fs');
+const path = require('path');
+fs.writeFileSync('events.json', '[]');
 
 let python = pythonBridge({
   python: 'python3'
 });
+
+function logEvent(eventType: string, eventData: any) {
+  const currentLogs = JSON.parse(fs.readFileSync('events.json', 'utf8'));
+  const eventLog = {
+    timestamp: new Date().toISOString(),
+    eventType,
+    eventData
+  };
+  currentLogs.push(eventLog);
+  fs.writeFileSync('events.json', JSON.stringify(currentLogs, null, 2));
+}
+
 
 const importModulesCode = `
 import click
@@ -41,7 +56,18 @@ def init_model(model_path='openai/whisper-large-v2'):
 
 def vad_function(audio_buffer):
     decoded_buffer = base64.b64decode(audio_buffer)
-    return vad.is_speech(decoded_buffer, sample_rate=16000)
+    # Frame size in bytes
+    FRAME_SIZE = 320  # 10 ms frame for 16 kHz
+
+    # Split buffer into frames of FRAME_SIZE
+    frames = [decoded_buffer[i:i+FRAME_SIZE] for i in range(0, len(decoded_buffer), FRAME_SIZE)]
+
+    # Process each frame and check for speech
+    for frame in frames:
+        if len(frame) == FRAME_SIZE and vad.is_speech(frame, sample_rate=16000):
+            return True
+
+    return False
 
 def asr_inference(audio_buffer):
     decoded_buffer = base64.b64decode(audio_buffer)
@@ -53,39 +79,21 @@ def asr_inference(audio_buffer):
   try {
     console.log("Booting up python...");
 
-    try {
-      console.log("Importing necessary modules...");
-      await python.ex(importModulesCode);
-      console.log("Modules imported successfully.");
-    } catch (error: any) {
-      console.error("Error during module imports:", error.message);
-    }
-
-    try {
-      console.log("Initializing global variables...");
-      await python.ex(initGlobalsCode);
-      console.log("Global variables initialized successfully.");
-    } catch (error: any) {
-      console.error("Error during global variable initialization:", error.message);
-    }
+    const initializePythonEnvironment = async () => {
+      await python.ex`${importModulesCode}`;
+      await python.ex`${initGlobalsCode}`;
+      await python.ex`${initUtilityFunctionsCode}`;
+    };
 
 
-    try {
-      console.log("Defining utility functions...");
-      await python.ex(initUtilityFunctionsCode);
-      console.log("Utility functions defined successfully.");
-    } catch (error: any) {
-      console.error("Error during utility function definition:", error.message);
-    }
+    // Call this once during your application's startup
+    await initializePythonEnvironment();
 
 
   } catch (error) {
     console.error("Error during Python initialization:", error);
   }
 })();
-
-const fs = require('fs');
-const path = require('path');
 
 // CONSTANTS
 const SAMPLING_RATE = 16000;
@@ -184,7 +192,6 @@ type AudioBufferFormat = {
   raw: string;
 };
 
-
 // asr hot replacement module section
 
 async function voiceActivityDetection(audioBuffer: any) {
@@ -199,6 +206,28 @@ async function voiceActivityDetection(audioBuffer: any) {
   // Check if audioBuffer has 'raw' key
   if (audioBuffer && Buffer.isBuffer(audioBuffer)) {
     const base64EncodedBuffer = audioBuffer.toString('base64');
+
+    await python.ex`
+        import base64
+        import webrtcvad
+        vad = webrtcvad.Vad()
+        vad.set_mode(1)
+        def vad_function(audio_buffer):
+            decoded_buffer = base64.b64decode(audio_buffer)
+            # Frame size in bytes
+            FRAME_SIZE = 320  # 10 ms frame for 16 kHz
+
+            # Split buffer into frames of FRAME_SIZE
+            frames = [decoded_buffer[i:i+FRAME_SIZE] for i in range(0, len(decoded_buffer), FRAME_SIZE)]
+
+            # Process each frame and check for speech
+            for frame in frames:
+                if len(frame) == FRAME_SIZE and vad.is_speech(frame, sample_rate=16000):
+                    return True
+
+            return False
+    `;
+
     return await python.ex`vad_function(${base64EncodedBuffer})`;
   } else {
     // Suppressed console.error
@@ -217,8 +246,21 @@ async function asrInference(audioBuffer: any) {
 
   // Convert audioBuffer to numpy ndarray if it's a dictionary with 'raw' key
   if (audioBuffer && Buffer.isBuffer(audioBuffer)) {
-    return await python.ex`buffer_np = np.frombuffer(${audioBuffer}, dtype=np.int16)
-      asr_inference(buffer_np)
+
+    const base64EncodedBuffer = audioBuffer.toString('base64');
+
+    await python.ex`
+        def asr_inference(audio_buffer):
+            global asr_pipeline
+            asr_pipeline = pipeline("automatic-speech-recognition",
+              model = model_path,
+              device = device,
+              torch_dtype = dtype)
+            decoded_buffer = base64.b64decode(audio_buffer)
+            return asr_pipeline(decoded_buffer)
+    `;
+
+    return await python.ex`asr_inference(${base64EncodedBuffer})
     `;
   } else {
     // Suppressed console.error
@@ -329,6 +371,7 @@ const writeGraph = () => {
 // EVENTS
 const newEventHandler = (event: Event, prevEvent: void | Event): void => {
   eventlog.events.push(event);
+  logEvent('event', event);
   updateScreen(event);
   updateGraph(event, prevEvent);
   const downstreamEvents = eventDag[event.eventType];
