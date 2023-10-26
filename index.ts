@@ -32,14 +32,15 @@ def vad_function(audio_buffer):
     # If it's a dictionary, print its keys
     if isinstance(audio_buffer, dict):
         print("Keys in audio_buffer:", audio_buffer.keys())
+
+        if 'raw' in audio_buffer:
+            truncated_buffer = base64.b64decode(audio_buffer['raw'])[:10]
+            print("Truncated byte_values from audio_buffer:", truncated_buffer)
+        else:
+            print("Error: audioBuffer does not contain 'raw' key")
         
         # Check for the 'raw' key
-        if 'raw' not in audio_buffer:
-            print("Error: audioBuffer does not contain 'raw' key")
-            return None
-        
-        byte_values = base64.b64decode(audio_buffer['raw'])
-
+        byte_values = base64.b64decode(audio_buffer)
         
         # Print a truncated version of the buffer
         print("Truncated byte_values:", byte_values[:10])
@@ -253,30 +254,44 @@ async function initializeASR(modelPath = 'openai/whisper-base') {
 }
 
 async function voiceActivityDetection(audioBuffer: any) {
+  console.log("Keys in audioBuffer:", Object.keys(audioBuffer));
+  if (audioBuffer.raw) {
+    const truncatedBuffer = audioBuffer.raw.slice(0, 10);
+    console.log("Truncated audioBuffer.raw:", truncatedBuffer);
+  } else {
+    console.error("Error: audioBuffer does not contain 'raw' key");
+  }
   await python.ex`from local_whisper import vad_function`;
 
   // Check if audioBuffer has 'raw' key
-  if (audioBuffer && typeof audioBuffer === 'object' && audioBuffer.raw) {
-    const base64EncodedBuffer = audioBuffer.raw.toString('base64');
+  if (audioBuffer && Buffer.isBuffer(audioBuffer)) {
+    const base64EncodedBuffer = audioBuffer.toString('base64');
     return await python`vad_function(${base64EncodedBuffer})`;
   } else {
-    console.error("Error: audioBuffer does not contain 'raw' key");
+    console.error("Error: audioBuffer is not a valid buffer");
     return false;
   }
 }
 
 async function asrInference(audioBuffer: any) {
+  console.log("Keys in audioBuffer:", Object.keys(audioBuffer));
+  if (audioBuffer.raw) {
+    const truncatedBuffer = audioBuffer.raw.slice(0, 10);
+    console.log("Truncated audioBuffer.raw:", truncatedBuffer);
+  } else {
+    console.error("Error: audioBuffer does not contain 'raw' key");
+  }
   await python.ex`from local_whisper import asr_inference`;
 
   // Convert audioBuffer to numpy ndarray if it's a dictionary with 'raw' key
-  if (audioBuffer && typeof audioBuffer === 'object' && audioBuffer.raw) {
+  if (audioBuffer && Buffer.isBuffer(audioBuffer)) {
     return await python`
       import numpy as np
-      buffer_np = np.frombuffer(${audioBuffer.raw}, dtype=np.int16)
+      buffer_np = np.frombuffer(${audioBuffer}, dtype=np.int16)
       asr_inference(buffer_np)
     `;
   } else {
-    console.error("Error: audioBuffer does not contain 'raw' key");
+    console.error("Error: audioBuffer is not a valid buffer");
     return "";
   }
 }
@@ -420,17 +435,20 @@ const transcriptionEventHandler = async (event: AudioBytesEvent) => {
     for (let i = VAD_BUFFER_SIZE; i > 0; i--) {
       let bufferItem = audioBytesEvents[audioBytesEvents.length - i].data.buffer;
 
+      // If bufferItem is a direct buffer, proceed directly
+      if (Buffer.isBuffer(bufferItem)) {
+        activityEvents.push(bufferItem);
+        continue;
+      }
+
       // Check if bufferItem is an object with a 'raw' property
       if (typeof bufferItem === 'object' && bufferItem.raw && typeof bufferItem.raw === 'string') {
         try {
           bufferItem = Buffer.from(bufferItem.raw, 'base64');
+          activityEvents.push(bufferItem);
         } catch (error) {
           console.error("Error converting raw string to buffer:", bufferItem.raw.substring(0, 50) + '...', error);
         }
-      }
-
-      if (Buffer.isBuffer(bufferItem)) {
-        activityEvents.push(bufferItem);
       } else {
         console.error("Invalid buffer item in activityEvents. Type:", typeof bufferItem, "Value:", bufferItem);
       }
@@ -465,8 +483,6 @@ const transcriptionEventHandler = async (event: AudioBytesEvent) => {
 
   // Ensure we only concatenate valid buffers
   const joinedBuffer = Buffer.concat(buffersToConcatenate as Buffer[]);
-
-
 
   // TODO: Wait for 1s, because whisper bindings currently throw out if not enough audio passed in
   // Therefore fix whisper
@@ -628,7 +644,9 @@ const audioProcess = spawn('bash', [audioListenerScript]);
 audioProcess.stdout.on('readable', () => {
   let data;
   while (data = audioProcess.stdout.read()) {
-    console.log('Data type:', typeof data, data);
+    console.log('Data type:', typeof data);
+    const truncatedData = data.slice(0, 10);
+    console.log('Truncated data from audioProcess:', truncatedData);
     newAudioBytesEvent(data);
   }
 });
