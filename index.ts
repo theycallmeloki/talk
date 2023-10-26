@@ -416,9 +416,24 @@ const transcriptionEventHandler = async (event: AudioBytesEvent) => {
   const audioBytesEvents = eventlog.events.filter(e => e.eventType === 'audioBytes' && e.timestamp >= lastCut);
   // Check if the user has stopped speaking
   if (VAD_ENABLED && (audioBytesEvents.length > (VAD_BUFFER_SIZE - 1))) {
-    const activityEvents = [];
+    const activityEvents: Buffer[] = [];
     for (let i = VAD_BUFFER_SIZE; i > 0; i--) {
-      activityEvents.push(audioBytesEvents[audioBytesEvents.length - i].data.buffer);
+      let bufferItem = audioBytesEvents[audioBytesEvents.length - i].data.buffer;
+
+      // Check if bufferItem is an object with a 'raw' property
+      if (typeof bufferItem === 'object' && bufferItem.raw && typeof bufferItem.raw === 'string') {
+        try {
+          bufferItem = Buffer.from(bufferItem.raw, 'base64');
+        } catch (error) {
+          console.error("Error converting raw string to buffer:", bufferItem.raw.substring(0, 50) + '...', error);
+        }
+      }
+
+      if (Buffer.isBuffer(bufferItem)) {
+        activityEvents.push(bufferItem);
+      } else {
+        console.error("Invalid buffer item in activityEvents. Type:", typeof bufferItem, "Value:", bufferItem);
+      }
     }
     const activityBuffer = Buffer.concat(activityEvents);
     const lastTranscription = getLastTranscriptionEvent()
@@ -428,18 +443,29 @@ const transcriptionEventHandler = async (event: AudioBytesEvent) => {
     }
   }
 
+  // Filtering and converting raw string data to buffers
   const buffersToConcatenate = audioBytesEvents
     .filter(event => typeof event.data.buffer.raw === 'string')
-    .map(event => Buffer.from(event.data.buffer.raw, 'base64'))
-    .filter(item => Buffer.isBuffer(item));
-
-  const joinedBuffer = Buffer.concat(
-    // @ts-ignore
-    audioBytesEvents.filter(event => typeof event.data.buffer.raw === 'string').map((event) => {
-      console.log(typeof event.data.buffer.raw, event.data.buffer.raw.substring(0, 50) + '...');
-      return Buffer.from(event.data.buffer.raw, 'base64');
+    .map(event => {
+      try {
+        return Buffer.from(event.data.buffer.raw, 'base64');
+      } catch (error) {
+        console.error("Error converting string to buffer:", event.data.buffer.raw.substring(0, 50) + '...', error);
+        return null;
+      }
     })
-  );
+    .filter(item => item !== null)  // Remove any null values
+    .filter(item => {
+      if (!Buffer.isBuffer(item)) {
+        console.error("Item is not a buffer:", item);
+        return false;
+      }
+      return true;
+    });
+
+  // Ensure we only concatenate valid buffers
+  const joinedBuffer = Buffer.concat(buffersToConcatenate as Buffer[]);
+
 
 
   // TODO: Wait for 1s, because whisper bindings currently throw out if not enough audio passed in
