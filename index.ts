@@ -250,6 +250,28 @@ async function asrInference(audioBuffer: any) {
     const base64EncodedBuffer = audioBuffer.toString('base64');
 
     await python.ex`
+        from transformers import pipeline
+        from pydub import AudioSegment
+        import io
+        import torch
+        import base64
+
+        model_path = 'openai/whisper-large-v2'
+        device = 'cuda:0'
+        dtype = torch.float32
+
+        def raw_to_wav(raw_data, sample_rate=16000, sample_width=2):
+            audio = AudioSegment(
+                raw_data,
+                sample_width=sample_width,
+                frame_rate=sample_rate,
+                channels=1
+            )
+            # Use an in-memory bytes buffer to store the WAV data
+            buffer = io.BytesIO()
+            audio.export(buffer, format="wav")
+            return buffer.getvalue()
+
         def asr_inference(audio_buffer):
             global asr_pipeline
             asr_pipeline = pipeline("automatic-speech-recognition",
@@ -257,7 +279,18 @@ async function asrInference(audioBuffer: any) {
               device = device,
               torch_dtype = dtype)
             decoded_buffer = base64.b64decode(audio_buffer)
-            return asr_pipeline(decoded_buffer)
+            
+            # Convert the raw audio data to WAV format
+            wav_buffer = raw_to_wav(decoded_buffer)
+
+            # Get the result from the ASR pipeline
+            result = asr_pipeline(wav_buffer)
+            
+            # Extract only the transcription text from the result
+            transcription = result  # Assuming the structure is a list with a dictionary inside
+            print(result)
+
+            return transcription
     `;
 
     return await python.ex`asr_inference(${base64EncodedBuffer})
@@ -458,11 +491,13 @@ const transcriptionEventHandler = async (event: AudioBytesEvent) => {
   // Ensure we only concatenate valid buffers
   const joinedBuffer = Buffer.concat(buffersToConcatenate as Buffer[]);
 
-  // TODO: Wait for 1s, because whisper bindings currently throw out if not enough audio passed in
-  // Therefore fix whisper
+  console.log("Joined Buffer Length:", joinedBuffer.length);
+  console.log("Transcription Mutex State Before:", transcriptionMutex);
+
   if (!transcriptionMutex && joinedBuffer.length > ONE_SECOND) {
     try {
       transcriptionMutex = true;
+      console.log("Transcription Mutex State After Setting:", transcriptionMutex);
       const rawTranscription = await asrInference(joinedBuffer) || "";
 
       let transcription = rawTranscription.replace(/\s*\[[^\]]*\]\s*|\s*\([^)]*\)\s*/g, ''); // clear up text in brackets
@@ -481,7 +516,7 @@ const transcriptionEventHandler = async (event: AudioBytesEvent) => {
       newEventHandler(transcriptionEvent, event);
 
     } catch (error) {
-      // Suppressed console.error
+      console.error("Error during ASR process:", error);
     } finally {
       transcriptionMutex = false;
     }
