@@ -27,22 +27,32 @@ def init_model(model_path='openai/whisper-large-v2'):
                             torch_dtype=dtype)
 
 def vad_function(audio_buffer):
-    print("VAD Audio Buffer Type:", type(audio_buffer))
-    
-    # If it's a dictionary, print its keys
-    truncated_buffer = base64.b64decode(audio_buffer)[:10]
-    print("Truncated byte_values from audio_buffer:", truncated_buffer)
-
     """Detects voice activity in the audio buffer."""
-    return vad.is_speech(audio_buffer, sample_rate=16000)
+    
+    # Logging information about the buffer
+    print("VAD Audio Buffer Type:", type(audio_buffer))
+    print(f"Truncated Audio Buffer (Python): {audio_buffer[:10]}")
+
+    # Decoding the audio buffer from base64
+    decoded_buffer = base64.b64decode(audio_buffer)
+    print(f"Decoded Buffer Length (Python): {len(decoded_buffer)}")
+    print(f"Truncated Decoded Buffer (Python): {decoded_buffer[:10]}")
+    
+    return vad.is_speech(decoded_buffer, sample_rate=16000)
 
 def asr_inference(audio_buffer):
-    print("ASR Audio Buffer Type:", type(audio_buffer))
-    
-    print("Truncated audio_buffer:", audio_buffer[:10])
-
     """Performs ASR on the audio buffer."""
-    return asr_pipeline(audio_buffer)
+    
+    # Logging information about the buffer
+    print("ASR Audio Buffer Type:", type(audio_buffer))
+    print(f"Truncated Audio Buffer (Python): {audio_buffer[:10]}")
+    
+    # Decoding the audio buffer from base64
+    decoded_buffer = base64.b64decode(audio_buffer)
+    print(f"Decoded Buffer Length (Python): {len(decoded_buffer)}")
+    print(f"Truncated Decoded Buffer (Python): {decoded_buffer[:10]}")
+    
+    return asr_pipeline(decoded_buffer)
 
 
 def seconds_to_srt_time_format(seconds):
@@ -108,6 +118,7 @@ let python = pythonBridge({
 });
 const directoryOfIndexTs = __dirname;
 python.ex`import sys`;
+python.ex`import numpy as np`
 python.ex`sys.path.append(${directoryOfIndexTs})`;
 
 
@@ -258,7 +269,7 @@ async function asrInference(audioBuffer: any) {
   // Convert audioBuffer to numpy ndarray if it's a dictionary with 'raw' key
   if (audioBuffer && Buffer.isBuffer(audioBuffer)) {
     return await python`
-      import numpy as np
+
       buffer_np = np.frombuffer(${audioBuffer}, dtype=np.int16)
       asr_inference(buffer_np)
     `;
@@ -386,6 +397,9 @@ const newEventHandler = (event: Event, prevEvent: void | Event): void => {
 }
 
 const newAudioBytesEvent = (buffer: Buffer): void => {
+  const truncatedBufferNode = buffer.slice(0, 10);
+  console.log("Buffer Length (Node.js):", buffer.length);
+  console.log("Truncated Buffer (Node.js):", truncatedBufferNode);
   const audioBytesEvent: AudioBytesEvent = {
     timestamp: Number(Date.now()),
     eventType: 'audioBytes',
