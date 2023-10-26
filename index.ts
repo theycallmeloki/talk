@@ -215,7 +215,7 @@ async function voiceActivityDetection(audioBuffer: any) {
         def vad_function(audio_buffer):
             decoded_buffer = base64.b64decode(audio_buffer)
             # Frame size in bytes
-            FRAME_SIZE = 320  # 10 ms frame for 16 kHz
+            FRAME_SIZE = 960  # 10 ms frame for 16 kHz
 
             # Split buffer into frames of FRAME_SIZE
             frames = [decoded_buffer[i:i+FRAME_SIZE] for i in range(0, len(decoded_buffer), FRAME_SIZE)]
