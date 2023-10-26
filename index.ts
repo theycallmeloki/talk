@@ -1,19 +1,21 @@
 import { spawn } from 'child_process';
 import readline from 'readline';
 import config from './config.json';
-const { whisperModelPath, audioListenerScript } = config;
+const { audioListenerScript } = config;
 import { talk } from './src/talk';
 import { Mutex } from './src/depedenciesLibrary/mutex';
+import { pythonBridge } from 'python-bridge';
+
+let python = pythonBridge({
+  python: 'python3'
+});
+const directoryOfIndexTs = __dirname;  
+python.ex`import sys`;
+python.ex`sys.path.append(${directoryOfIndexTs})`;
+
 
 const fs = require('fs');
 const path = require('path');
-
-const whisper = require('./bindings/whisper/whisper-addon');
-
-// INIT GGML CPP BINDINGS
-whisper.init(whisperModelPath);
-
-let globalWhisperPromise: Promise<string>;
 
 // CONSTANTS
 const SAMPLING_RATE = 16000;
@@ -25,15 +27,9 @@ const BUFFER_LENGTH_MS = BUFFER_LENGTH_SECONDS * 1000;
 const VAD_ENABLED = config.voiceActivityDetectionEnabled;
 const INTERRUPTION_ENABLED = config.interruptionEnabled;
 const INTERRUPTION_LENGTH_CHARS = 20;
-// FIXME We should rewrite whisper.cpp's VAD to take a buffer size instead of ms
-// Each buffer we send is about 0.5s
 const VAD_BUFFER_SIZE = 8;
-const VAD_SAMPLE_MS = ((VAD_BUFFER_SIZE / 2) / 2) * 1000;
-const VAD_THOLD = 0.6;
-const VAD_ENERGY_THOLD = 0.00005;
 
 const DEFAULT_LLAMA_SERVER_URL = 'http://127.0.0.1:8080'
-const WHISPER_TIMEOUT = 5000;
 const MAX_DIALOGUES_IN_CONTEXT = 10;
 const GRAPH_FILE = 'talk.dot';
 
@@ -42,6 +38,12 @@ let llamaServerUrl: string = DEFAULT_LLAMA_SERVER_URL;
 if ('llamaServerUrl' in config) {
   llamaServerUrl = config.llamaServerUrl as string;
 }
+
+(async () => {
+  (python`print(${"Booting up python..."})` as any);
+  await initializeASR();
+})();
+
 
 const DEFAULT_PROMPT = "Continue the dialogue, speak for bob only. \nMake it a fun lighthearted conversation."
 
@@ -112,6 +114,47 @@ interface EventLog {
 const eventlog: EventLog = {
   events: []
 };
+
+// asr hot replacement module section
+
+async function initializeASR(modelPath = 'openai/whisper-base') {
+  await python.ex`from local_whisper import init_model`;  
+  await python`init_model(${modelPath})`;
+}
+
+async function voiceActivityDetection(audioBuffer: any) {
+  await python.ex`from local_whisper import vad_function`;
+
+  // Check if audioBuffer has 'raw' key
+  if (audioBuffer && typeof audioBuffer === 'object' && audioBuffer.raw) {
+    return await python`vad_function(${audioBuffer.raw})`;
+  } else {
+    console.error("Error: audioBuffer does not contain 'raw' key");
+    return false;
+  }
+}
+
+async function asrInference(audioBuffer: any) {
+  await python.ex`from local_whisper import asr_inference`;
+
+  // Convert audioBuffer to numpy ndarray if it's a dictionary with 'raw' key
+  if (audioBuffer && typeof audioBuffer === 'object' && audioBuffer.raw) {
+    return await python`
+      import numpy as np
+      buffer_np = np.frombuffer(${audioBuffer.raw}, dtype=np.int16)
+      asr_inference(buffer_np)
+    `;
+  } else {
+    console.error("Error: audioBuffer does not contain 'raw' key");
+    return "";
+  }
+}
+
+
+
+async function endASR() {
+  await python.end();
+}
 
 // EVENTLOG UTILITY FUNCTIONS
 // From the event log, get the transcription so far
@@ -233,20 +276,6 @@ const newAudioBytesEvent = (buffer: Buffer): void => {
   newEventHandler(audioBytesEvent);
 }
 
-function promiseTimeout<T>(ms: number, promise: Promise<T>): Promise<T> {
-  let timeout = new Promise<T>((resolve, reject) => {
-    let id = setTimeout(() => {
-      clearTimeout(id);
-      reject(`Timed out in ${ms}ms.`);
-    }, ms);
-  });
-
-  return Promise.race([
-    promise,
-    timeout
-  ]);
-}
-
 let transcriptionMutex = false;
 const transcriptionEventHandler = async (event: AudioBytesEvent) => {
   // TODO: Unbounded linear growth. Instead, walk backwards or something.
@@ -260,7 +289,7 @@ const transcriptionEventHandler = async (event: AudioBytesEvent) => {
     }
     const activityBuffer = Buffer.concat(activityEvents);
     const lastTranscription = getLastTranscriptionEvent()
-    const doneSpeaking = whisper.finishedVoiceActivity(activityBuffer, VAD_SAMPLE_MS, VAD_THOLD, VAD_ENERGY_THOLD);
+    const doneSpeaking = await voiceActivityDetection(activityBuffer);
     if (doneSpeaking && lastTranscription && lastTranscription.data.transcription.length) {
         return responseInputEventHandler();
     }
@@ -274,10 +303,8 @@ const transcriptionEventHandler = async (event: AudioBytesEvent) => {
   if (!transcriptionMutex && joinedBuffer.length > ONE_SECOND) {  
     try {
       transcriptionMutex = true;
-      const whisperPromise = whisper.whisperInferenceOnBytes(joinedBuffer);
-      globalWhisperPromise = promiseTimeout<string>(WHISPER_TIMEOUT, whisperPromise);
+      const rawTranscription = await asrInference(joinedBuffer);
 
-      const rawTranscription = await globalWhisperPromise;
       let transcription = rawTranscription.replace(/\s*\[[^\]]*\]\s*|\s*\([^)]*\)\s*/g, ''); // clear up text in brackets
       transcription = transcription.replace(/[^a-zA-Z0-9\.,\?!\s\:\'\-]/g, ""); // retain only alphabets chars and punctuation
       transcription = transcription.trim();
@@ -319,7 +346,6 @@ const cutTranscriptionEventHandler = async (event: TranscriptionEvent) => {
 }
 
 const responseReflexEventHandler = async (event: TranscriptionEvent): Promise<void> => {
-  await globalWhisperPromise;
   // Check if there was a response input between the last two transcription events
   const transcriptionEvents = eventlog.events.filter(e => e.eventType === 'transcription');
   const lastTranscriptionEventTimestamp = transcriptionEvents.length > 1 ? transcriptionEvents[transcriptionEvents.length - 2].timestamp : eventlog.events[0].timestamp;
@@ -444,7 +470,7 @@ process.stdin.setRawMode(true);
 process.stdin.on('keypress', async (str, key) => {
   // Detect Ctrl+C and manually emit SIGINT to preserve default behavior
   if (key.sequence === '\u0003') {
-    await Promise.all([globalWhisperPromise]);
+    await endASR();
     writeGraph();
     process.exit();
   }
