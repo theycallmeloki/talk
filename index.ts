@@ -116,11 +116,23 @@ import { pythonBridge } from 'python-bridge';
 let python = pythonBridge({
   python: 'python3'
 });
-const directoryOfIndexTs = __dirname;
-python.ex`import sys`;
-python.ex`import numpy as np`
-python.ex`sys.path.append(${directoryOfIndexTs})`;
 
+(async () => {
+  (python`print(${"Booting up python..."})` as any);
+  try {
+    // Execute the entire pythonCode to initialize the environment
+    await python.ex`import sys`;
+    await python.ex`import numpy as np`;
+    await python.ex(pythonCode);
+
+    // Now, you can call functions defined in pythonCode
+    await python`init_model(${"openai/whisper-large-v2"})`;
+
+
+  } catch (error) {
+    console.error("Error during Python initialization:", error);
+  }
+})();
 
 const fs = require('fs');
 const path = require('path');
@@ -146,12 +158,6 @@ let llamaServerUrl: string = DEFAULT_LLAMA_SERVER_URL;
 if ('llamaServerUrl' in config) {
   llamaServerUrl = config.llamaServerUrl as string;
 }
-
-(async () => {
-  (python`print(${"Booting up python..."})` as any);
-  await initializeASR();
-})();
-
 
 const DEFAULT_PROMPT = "Continue the dialogue, speak for bob only. \nMake it a fun lighthearted conversation."
 
@@ -231,11 +237,6 @@ type AudioBufferFormat = {
 
 // asr hot replacement module section
 
-async function initializeASR(modelPath = 'openai/whisper-base') {
-  await python.ex`from local_whisper import init_model`;
-  await python`init_model(${modelPath})`;
-}
-
 async function voiceActivityDetection(audioBuffer: any) {
   // Suppressed: console.log("Keys in audioBuffer:", Object.keys(audioBuffer));
   if (audioBuffer.raw) {
@@ -244,7 +245,6 @@ async function voiceActivityDetection(audioBuffer: any) {
   } else {
     // Suppressed console.error
   }
-  await python.ex`from local_whisper import vad_function`;
 
   // Check if audioBuffer has 'raw' key
   if (audioBuffer && Buffer.isBuffer(audioBuffer)) {
@@ -264,7 +264,6 @@ async function asrInference(audioBuffer: any) {
   } else {
     // Suppressed console.error
   }
-  await python.ex`from local_whisper import asr_inference`;
 
   // Convert audioBuffer to numpy ndarray if it's a dictionary with 'raw' key
   if (audioBuffer && Buffer.isBuffer(audioBuffer)) {
@@ -278,8 +277,6 @@ async function asrInference(audioBuffer: any) {
     return "";
   }
 }
-
-
 
 async function endASR() {
   await python.end();
