@@ -1,110 +1,3 @@
-
-const pythonCode = `
-import click
-import os
-import time
-import webrtcvad
-from transformers import pipeline
-import torch
-import base64
-
-
-# Global variables
-vad = webrtcvad.Vad(1)  # Sensitivity level: 1
-model_path = 'openai/whisper-large-v2'
-device = 'cuda:0'
-dtype = torch.float32
-asr_pipeline = pipeline("automatic-speech-recognition",
-                        model=model_path,
-                        device=device,
-                        torch_dtype=dtype)
-
-def init_model(model_path='openai/whisper-large-v2'):
-    global asr_pipeline
-    asr_pipeline = pipeline("automatic-speech-recognition",
-                            model=model_path,
-                            device=device,
-                            torch_dtype=dtype)
-
-def vad_function(audio_buffer):
-    """Detects voice activity in the audio buffer."""
-    
-    # Logging information about the buffer
-    pass  # pass  # Suppressed print)
-    pass  # pass  # Suppressed print: {audio_buffer[:10]}")
-
-    # Decoding the audio buffer from base64
-    decoded_buffer = base64.b64decode(audio_buffer)
-    pass  # pass  # Suppressed print: {len(decoded_buffer)}")
-    pass  # pass  # Suppressed print: {decoded_buffer[:10]}")
-    
-    return vad.is_speech(decoded_buffer, sample_rate=16000)
-
-def asr_inference(audio_buffer):
-    """Performs ASR on the audio buffer."""
-    
-    # Logging information about the buffer
-    pass  # pass  # Suppressed print)
-    pass  # pass  # Suppressed print: {audio_buffer[:10]}")
-    
-    # Decoding the audio buffer from base64
-    decoded_buffer = base64.b64decode(audio_buffer)
-    pass  # pass  # Suppressed print: {len(decoded_buffer)}")
-    pass  # pass  # Suppressed print: {decoded_buffer[:10]}")
-    
-    return asr_pipeline(decoded_buffer)
-
-
-def seconds_to_srt_time_format(seconds):
-    hours = seconds // 3600
-    seconds %= 3600
-    minutes = seconds // 60
-    seconds %= 60
-    milliseconds = int((seconds - int(seconds)) * 1000)
-    hours = int(hours)
-    minutes = int(minutes)
-    seconds = int(seconds)
-    return f"{hours:02d}:{minutes:02d}:{int(seconds):02d},{milliseconds:03d}"
-
-@click.command()
-@click.option('--model', default='openai/whisper-base', help='ASR model to use for speech recognition. Default is "openai/whisper-base".')
-@click.option('--device', default='cuda:0', help='Device to use for computation. Default is "cuda:0". If you want to use CPU, specify "cpu".')
-@click.option('--dtype', default='float32', help='Data type for computation. Can be either "float32" or "float16". Default is "float32".')
-@click.option('--batch-size', type=int, default=8, help='Batch size for processing. Default is 8.')
-@click.option('--chunk-length', type=int, default=30, help='Length of audio chunks to process at once. Default is 30 seconds.')
-@click.argument('audio_file', type=str)
-def cli_asr(model, device, dtype, batch_size, chunk_length, audio_file):
-    init_model(model)
-
-    # Perform ASR
-    pass  # pass  # Suppressed print
-    start_time = time.perf_counter()
-    outputs = asr_inference(audio_file)  # NOTE: This is a placeholder. You'll need to adapt for buffers or reading files directly.
-
-    # Output the results
-    pass  # pass  # Suppressed print
-    pass  # pass  # Suppressed print
-    end_time = time.perf_counter()
-    elapsed_time = end_time - start_time
-    pass  # pass  # Suppressed print
-
-    # Save ASR chunks to an SRT file
-    audio_file_name = os.path.splitext(os.path.basename(audio_file))[0]
-    srt_filename = f"{audio_file_name}.srt"
-    with open(srt_filename, 'w') as srt_file:
-        for index, chunk in enumerate(outputs['chunks']):
-            start_time = seconds_to_srt_time_format(chunk['timestamp'][0])
-            end_time = seconds_to_srt_time_format(chunk['timestamp'][1])
-            srt_file.write(f"{index + 1}\n")
-            srt_file.write(f"{start_time} --> {end_time}\n")
-            srt_file.write(f"{chunk['text'].strip()}\n\n")
-
-if __name__ == '__main__':
-    cli_asr()
-
-`;
-
-
 import { spawn } from 'child_process';
 import readline from 'readline';
 import config from './config.json';
@@ -117,11 +10,75 @@ let python = pythonBridge({
   python: 'python3'
 });
 
+const importModulesCode = `
+import click
+import os
+import time
+import webrtcvad
+from transformers import pipeline
+import torch
+import base64
+`;
+
+const initGlobalsCode = `
+vad = webrtcvad.Vad(1)
+model_path = 'openai/whisper-large-v2'
+device = 'cuda:0'
+dtype = torch.float32
+asr_pipeline = pipeline("automatic-speech-recognition",
+model=model_path,
+device=device,
+torch_dtype=dtype)
+`;
+
+const initUtilityFunctionsCode = `
+def init_model(model_path='openai/whisper-large-v2'):
+    global asr_pipeline
+    asr_pipeline = pipeline("automatic-speech-recognition",
+        model=model_path,
+        device=device,
+        torch_dtype=dtype)
+
+def vad_function(audio_buffer):
+    decoded_buffer = base64.b64decode(audio_buffer)
+    return vad.is_speech(decoded_buffer, sample_rate=16000)
+
+def asr_inference(audio_buffer):
+    decoded_buffer = base64.b64decode(audio_buffer)
+    return asr_pipeline(decoded_buffer)
+`;
+
+
 (async () => {
   try {
     console.log("Booting up python...");
-    await python.ex(pythonCode);  // Execute the entire pythonCode to initialize the environment
-    await python.ex`init_model("openai/whisper-large-v2")`;  // Initialize the ASR model
+
+    try {
+      console.log("Importing necessary modules...");
+      await python.ex(importModulesCode);
+      console.log("Modules imported successfully.");
+    } catch (error: any) {
+      console.error("Error during module imports:", error.message);
+    }
+
+    try {
+      console.log("Initializing global variables...");
+      await python.ex(initGlobalsCode);
+      console.log("Global variables initialized successfully.");
+    } catch (error: any) {
+      console.error("Error during global variable initialization:", error.message);
+    }
+
+
+    try {
+      console.log("Defining utility functions...");
+      await python.ex(initUtilityFunctionsCode);
+      console.log("Utility functions defined successfully.");
+    } catch (error: any) {
+      console.error("Error during utility function definition:", error.message);
+    }
+
+
   } catch (error) {
     console.error("Error during Python initialization:", error);
   }
