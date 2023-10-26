@@ -21,113 +21,9 @@ function logEvent(eventType: string, eventData: any) {
     eventData
   };
   currentLogs.push(eventLog);
-  fs.writeFileSync('events.json', JSON.stringify(currentLogs, null, 2));
+  fs.writeFileSync('events.json', JSON.stringify(currentLogs, null, 4));
 }
 
-
-const importModulesCode = `
-import click
-import os
-import time
-import webrtcvad
-from transformers import pipeline
-import torch
-import base64
-`;
-
-const initGlobalsCode = `
-vad = webrtcvad.Vad(1)
-model_path = 'openai/whisper-large-v2'
-device = 'cuda:0'
-dtype = torch.float32
-asr_pipeline = pipeline("automatic-speech-recognition",
-model=model_path,
-device=device,
-torch_dtype=dtype)
-`;
-
-const initUtilityFunctionsCode = `
-def init_model(model_path='openai/whisper-large-v2'):
-    global asr_pipeline
-    asr_pipeline = pipeline("automatic-speech-recognition",
-        model=model_path,
-        device=device,
-        torch_dtype=dtype)
-
-def vad_function(audio_buffer):
-    decoded_buffer = base64.b64decode(audio_buffer)
-    # Frame size in bytes
-    FRAME_SIZE = 320  # 10 ms frame for 16 kHz
-
-    # Split buffer into frames of FRAME_SIZE
-    frames = [decoded_buffer[i:i+FRAME_SIZE] for i in range(0, len(decoded_buffer), FRAME_SIZE)]
-
-    # Process each frame and check for speech
-    for frame in frames:
-        if len(frame) == FRAME_SIZE and vad.is_speech(frame, sample_rate=16000):
-            return True
-
-    return False
-
-def asr_inference(audio_buffer):
-    decoded_buffer = base64.b64decode(audio_buffer)
-    return asr_pipeline(decoded_buffer)
-`;
-
-
-(async () => {
-  try {
-    console.log("Booting up python...");
-
-    const initializePythonEnvironment = async () => {
-      await python.ex`${importModulesCode}`;
-      await python.ex`${initGlobalsCode}`;
-      await python.ex`${initUtilityFunctionsCode}`;
-    };
-
-
-    // Call this once during your application's startup
-    await initializePythonEnvironment();
-
-
-  } catch (error) {
-    console.error("Error during Python initialization:", error);
-  }
-})();
-
-// CONSTANTS
-const SAMPLING_RATE = 16000;
-const CHANNELS = 1;
-const BIT_DEPTH = 16;
-const ONE_SECOND = SAMPLING_RATE * (BIT_DEPTH / 8) * CHANNELS;
-const BUFFER_LENGTH_SECONDS = 28;
-const BUFFER_LENGTH_MS = BUFFER_LENGTH_SECONDS * 1000;
-const VAD_ENABLED = config.voiceActivityDetectionEnabled;
-const INTERRUPTION_ENABLED = config.interruptionEnabled;
-const INTERRUPTION_LENGTH_CHARS = 20;
-const VAD_BUFFER_SIZE = 8;
-
-const DEFAULT_LLAMA_SERVER_URL = 'http://127.0.0.1:8080'
-const MAX_DIALOGUES_IN_CONTEXT = 10;
-const GRAPH_FILE = 'talk.dot';
-
-let llamaServerUrl: string = DEFAULT_LLAMA_SERVER_URL;
-
-if ('llamaServerUrl' in config) {
-  llamaServerUrl = config.llamaServerUrl as string;
-}
-
-const DEFAULT_PROMPT = "Continue the dialogue, speak for bob only. \nMake it a fun lighthearted conversation."
-
-let conversationPrompt: string = DEFAULT_PROMPT;
-let personaConfig: string = "";
-if ('personaFile' in config) {
-  const personaFilePath = path.resolve(config.personaFile);
-  if (fs.existsSync(personaFilePath)) {
-    personaConfig = fs.readFileSync(personaFilePath, 'utf8');
-    conversationPrompt = "";
-  }
-}
 
 // INTERFACES
 type EventType = 'audioBytes' | 'responseReflex' | 'transcription' | 'cutTranscription' | 'talk' | 'interrupt' | 'responseInput';
@@ -188,20 +84,56 @@ interface EventLog {
 const eventlog: EventLog = {
   events: []
 };
-type AudioBufferFormat = {
-  raw: string;
-};
+
+
+(async () => {
+  console.log("Booting up python...");
+})();
+
+// CONSTANTS
+const SAMPLING_RATE = 16000;
+const CHANNELS = 1;
+const BIT_DEPTH = 16;
+const ONE_SECOND = SAMPLING_RATE * (BIT_DEPTH / 8) * CHANNELS;
+const BUFFER_LENGTH_SECONDS = 28;
+const BUFFER_LENGTH_MS = BUFFER_LENGTH_SECONDS * 1000;
+const VAD_ENABLED = config.voiceActivityDetectionEnabled;
+const INTERRUPTION_ENABLED = config.interruptionEnabled;
+const INTERRUPTION_LENGTH_CHARS = 20;
+const VAD_BUFFER_SIZE = 8;
+
+const DEFAULT_LLAMA_SERVER_URL = 'http://127.0.0.1:8080'
+const MAX_DIALOGUES_IN_CONTEXT = 10;
+const GRAPH_FILE = 'talk.dot';
+
+let llamaServerUrl: string = DEFAULT_LLAMA_SERVER_URL;
+
+if ('llamaServerUrl' in config) {
+  llamaServerUrl = config.llamaServerUrl as string;
+}
+
+const DEFAULT_PROMPT = "Continue the dialogue, speak for bob only. \nMake it a fun lighthearted conversation."
+
+let conversationPrompt: string = DEFAULT_PROMPT;
+let personaConfig: string = "";
+if ('personaFile' in config) {
+  const personaFilePath = path.resolve(config.personaFile);
+  if (fs.existsSync(personaFilePath)) {
+    personaConfig = fs.readFileSync(personaFilePath, 'utf8');
+    conversationPrompt = "";
+  }
+}
 
 // asr hot replacement module section
 
 async function voiceActivityDetection(audioBuffer: any) {
   // Suppressed: console.log("Keys in audioBuffer:", Object.keys(audioBuffer));
-  if (audioBuffer.raw) {
-    const truncatedBuffer = audioBuffer.raw.slice(0, 10);
-    // Suppressed: // Suppressed console.log
-  } else {
-    // Suppressed console.error
-  }
+  // if (audioBuffer.raw) {
+  //   const truncatedBuffer = audioBuffer.raw.slice(0, 10);
+  //   // Suppressed: // Suppressed console.log
+  // } else {
+  //   // Suppressed console.error
+  // }
 
   // Check if audioBuffer has 'raw' key
   if (audioBuffer && Buffer.isBuffer(audioBuffer)) {
@@ -236,15 +168,8 @@ async function voiceActivityDetection(audioBuffer: any) {
 }
 
 async function asrInference(audioBuffer: any) {
-  // Suppressed: console.log("Keys in audioBuffer:", Object.keys(audioBuffer));
-  if (audioBuffer.raw) {
-    const truncatedBuffer = audioBuffer.raw.slice(0, 10);
-    // Suppressed: // Suppressed console.log
-  } else {
-    // Suppressed console.error
-  }
 
-  // Convert audioBuffer to numpy ndarray if it's a dictionary with 'raw' key
+  // Convert audioBuffer to wav if it's a dictionary with 'raw' key
   if (audioBuffer && Buffer.isBuffer(audioBuffer)) {
 
     const base64EncodedBuffer = audioBuffer.toString('base64');
@@ -371,12 +296,10 @@ const getDialogue = (): string => {
   return result.join('\n');
 }
 
-// const updateScreenEvents: Set<EventType> = new Set([])
 const updateScreenEvents: Set<EventType> = new Set(['responseReflex', 'cutTranscription', 'talk', 'interrupt']);
 const updateScreen = (event: Event) => {
   if (updateScreenEvents.has(event.eventType)) {
     // Suppressed: console.log(getDialogue());
-    // Suppressed: // Suppressed console.log
   }
 }
 
@@ -421,9 +344,6 @@ const newEventHandler = (event: Event, prevEvent: void | Event): void => {
 }
 
 const newAudioBytesEvent = (buffer: Buffer): void => {
-  const truncatedBufferNode = buffer.slice(0, 10);
-  // Suppressed: console.log("Buffer Length (Node.js):", buffer.length);
-  // Suppressed: console.log("Truncated Buffer (Node.js):", truncatedBufferNode);
   const audioBytesEvent: AudioBytesEvent = {
     timestamp: Number(Date.now()),
     eventType: 'audioBytes',
@@ -558,7 +478,7 @@ const responseReflexEventHandler = async (event: TranscriptionEvent): Promise<vo
       }
       newEventHandler(responseReflexEvent, event);
     } else {
-      // Suppressed: console.log('No transcription yet. Please speak into the microphone.')
+      console.log('No transcription yet. Please speak into the microphone.')
     }
   }
 }
@@ -653,9 +573,6 @@ const audioProcess = spawn('bash', [audioListenerScript]);
 audioProcess.stdout.on('readable', () => {
   let data;
   while (data = audioProcess.stdout.read()) {
-    // Suppressed: // Suppressed console.log
-    const truncatedData = data.slice(0, 10);
-    // Suppressed: // Suppressed console.log
     newAudioBytesEvent(data);
   }
 });
