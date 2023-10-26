@@ -10,6 +10,12 @@ Is this project useful to you? Give me a [**⬆money upvote!⬆**](https://donat
 Right now, we have been testing this on linux + cuda. The project is still at an early stage, and requires a lot of elbow grease to get running. We'll keep on making it better as time goes on!
 
 ### Changelog
+Thurs Oct 25 2023 - Loki
+- Talk now uses insanely fast whisper (whisper large v2)
+- Breaks most functionality, rough plan
+- 1. drop whisper.cpp, llama.cpp
+  2. implement llama-cpp-python[server] as a drop in replacement for a openai-compatible rest client so we can resume gguf model support
+  3. tweak hyperparameters in sampling until performance/response cohesivity improves
 Wed Jun 21 2023
 - Talk now uses an event based architecture
 - Set up still isn't straightforward. We'll give this a pass
@@ -29,12 +35,15 @@ Wed Jun 14 2023
 
 *The intended audience for this project at the current state is people who are comfortable with hacking things together.*
 
+For v2 better transformer source -> humbly lifted and shifted from [here](https://github.com/ochen1/insanely-fast-whisper-cli) and [here](https://github.com/Vaibhavs10/insanely-fast-whisper) 
 ```
 pip install -q --upgrade torch torchvision torchaudio
 pip install -q git+https://github.com/huggingface/transformers
 pip install -q accelerate optimum
 pip install -q ipython-autotime
 ```
+
+Piper installation below applies, but for the rest, I don't particularly recommend actually installing this, the more you dig in, the more you might be disappointed
 
 ### Using bundled bash script (experimental)
 ```
