@@ -4,6 +4,8 @@ import time
 import webrtcvad
 from transformers import pipeline
 import torch
+import base64
+
 
 # Global variables
 vad = webrtcvad.Vad(1)  # Sensitivity level: 1
@@ -34,7 +36,8 @@ def vad_function(audio_buffer):
             print("Error: audioBuffer does not contain 'raw' key")
             return None
         
-        byte_values = audio_buffer['raw']
+        byte_values = base64.b64decode(audio_buffer['raw'])
+
         
         # Print a truncated version of the buffer
         print("Truncated byte_values:", byte_values[:10])

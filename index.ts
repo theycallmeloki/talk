@@ -67,7 +67,9 @@ interface Event {
 interface AudioBytesEvent extends Event {
   eventType: 'audioBytes';
   data: {
-    buffer: Buffer;
+    buffer: {
+      raw: string;
+    };
   }
 }
 interface ResponseReflexEvent extends Event {
@@ -114,6 +116,10 @@ interface EventLog {
 const eventlog: EventLog = {
   events: []
 };
+type AudioBufferFormat = {
+  raw: string;
+};
+
 
 // asr hot replacement module section
 
@@ -271,10 +277,11 @@ const newAudioBytesEvent = (buffer: Buffer): void => {
   const audioBytesEvent: AudioBytesEvent = {
     timestamp: Number(Date.now()),
     eventType: 'audioBytes',
-    data: { buffer }
-  }
+    data: { buffer: { raw: buffer.toString('base64') } }
+  };
   newEventHandler(audioBytesEvent);
-}
+};
+
 
 let transcriptionMutex = false;
 const transcriptionEventHandler = async (event: AudioBytesEvent) => {
@@ -295,8 +302,9 @@ const transcriptionEventHandler = async (event: AudioBytesEvent) => {
     }
   }
   const joinedBuffer = Buffer.concat(
-    audioBytesEvents.map((event) => event.data.buffer)
+    audioBytesEvents.map((event) => Buffer.from(event.data.buffer.raw, 'base64'))
   );
+
 
   // TODO: Wait for 1s, because whisper bindings currently throw out if not enough audio passed in
   // Therefore fix whisper
