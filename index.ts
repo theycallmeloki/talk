@@ -30,13 +30,13 @@ def vad_function(audio_buffer):
     """Detects voice activity in the audio buffer."""
     
     # Logging information about the buffer
-    print("VAD Audio Buffer Type:", type(audio_buffer))
-    print(f"Truncated Audio Buffer (Python): {audio_buffer[:10]}")
+    pass  # pass  # Suppressed print)
+    pass  # pass  # Suppressed print: {audio_buffer[:10]}")
 
     # Decoding the audio buffer from base64
     decoded_buffer = base64.b64decode(audio_buffer)
-    print(f"Decoded Buffer Length (Python): {len(decoded_buffer)}")
-    print(f"Truncated Decoded Buffer (Python): {decoded_buffer[:10]}")
+    pass  # pass  # Suppressed print: {len(decoded_buffer)}")
+    pass  # pass  # Suppressed print: {decoded_buffer[:10]}")
     
     return vad.is_speech(decoded_buffer, sample_rate=16000)
 
@@ -44,13 +44,13 @@ def asr_inference(audio_buffer):
     """Performs ASR on the audio buffer."""
     
     # Logging information about the buffer
-    print("ASR Audio Buffer Type:", type(audio_buffer))
-    print(f"Truncated Audio Buffer (Python): {audio_buffer[:10]}")
+    pass  # pass  # Suppressed print)
+    pass  # pass  # Suppressed print: {audio_buffer[:10]}")
     
     # Decoding the audio buffer from base64
     decoded_buffer = base64.b64decode(audio_buffer)
-    print(f"Decoded Buffer Length (Python): {len(decoded_buffer)}")
-    print(f"Truncated Decoded Buffer (Python): {decoded_buffer[:10]}")
+    pass  # pass  # Suppressed print: {len(decoded_buffer)}")
+    pass  # pass  # Suppressed print: {decoded_buffer[:10]}")
     
     return asr_pipeline(decoded_buffer)
 
@@ -77,16 +77,16 @@ def cli_asr(model, device, dtype, batch_size, chunk_length, audio_file):
     init_model(model)
 
     # Perform ASR
-    print("Model loaded.")
+    pass  # pass  # Suppressed print
     start_time = time.perf_counter()
     outputs = asr_inference(audio_file)  # NOTE: This is a placeholder. You'll need to adapt for buffers or reading files directly.
 
     # Output the results
-    print(outputs)
-    print("Transcription complete.")
+    pass  # pass  # Suppressed print
+    pass  # pass  # Suppressed print
     end_time = time.perf_counter()
     elapsed_time = end_time - start_time
-    print(f"ASR took {elapsed_time:.2f} seconds.")
+    pass  # pass  # Suppressed print
 
     # Save ASR chunks to an SRT file
     audio_file_name = os.path.splitext(os.path.basename(audio_file))[0]
@@ -237,12 +237,12 @@ async function initializeASR(modelPath = 'openai/whisper-base') {
 }
 
 async function voiceActivityDetection(audioBuffer: any) {
-  console.log("Keys in audioBuffer:", Object.keys(audioBuffer));
+  // Suppressed: console.log("Keys in audioBuffer:", Object.keys(audioBuffer));
   if (audioBuffer.raw) {
     const truncatedBuffer = audioBuffer.raw.slice(0, 10);
-    console.log("Truncated audioBuffer.raw:", truncatedBuffer);
+    // Suppressed: // Suppressed console.log
   } else {
-    console.error("Error: audioBuffer does not contain 'raw' key");
+    // Suppressed console.error
   }
   await python.ex`from local_whisper import vad_function`;
 
@@ -251,18 +251,18 @@ async function voiceActivityDetection(audioBuffer: any) {
     const base64EncodedBuffer = audioBuffer.toString('base64');
     return await python`vad_function(${base64EncodedBuffer})`;
   } else {
-    console.error("Error: audioBuffer is not a valid buffer");
+    // Suppressed console.error
     return false;
   }
 }
 
 async function asrInference(audioBuffer: any) {
-  console.log("Keys in audioBuffer:", Object.keys(audioBuffer));
+  // Suppressed: console.log("Keys in audioBuffer:", Object.keys(audioBuffer));
   if (audioBuffer.raw) {
     const truncatedBuffer = audioBuffer.raw.slice(0, 10);
-    console.log("Truncated audioBuffer.raw:", truncatedBuffer);
+    // Suppressed: // Suppressed console.log
   } else {
-    console.error("Error: audioBuffer does not contain 'raw' key");
+    // Suppressed console.error
   }
   await python.ex`from local_whisper import asr_inference`;
 
@@ -274,7 +274,7 @@ async function asrInference(audioBuffer: any) {
       asr_inference(buffer_np)
     `;
   } else {
-    console.error("Error: audioBuffer is not a valid buffer");
+    // Suppressed console.error
     return "";
   }
 }
@@ -352,8 +352,8 @@ const getDialogue = (): string => {
 const updateScreenEvents: Set<EventType> = new Set(['responseReflex', 'cutTranscription', 'talk', 'interrupt']);
 const updateScreen = (event: Event) => {
   if (updateScreenEvents.has(event.eventType)) {
-    console.log(getDialogue());
-    console.log(event);
+    // Suppressed: console.log(getDialogue());
+    // Suppressed: // Suppressed console.log
   }
 }
 
@@ -398,8 +398,8 @@ const newEventHandler = (event: Event, prevEvent: void | Event): void => {
 
 const newAudioBytesEvent = (buffer: Buffer): void => {
   const truncatedBufferNode = buffer.slice(0, 10);
-  console.log("Buffer Length (Node.js):", buffer.length);
-  console.log("Truncated Buffer (Node.js):", truncatedBufferNode);
+  // Suppressed: console.log("Buffer Length (Node.js):", buffer.length);
+  // Suppressed: console.log("Truncated Buffer (Node.js):", truncatedBufferNode);
   const audioBytesEvent: AudioBytesEvent = {
     timestamp: Number(Date.now()),
     eventType: 'audioBytes',
@@ -436,7 +436,7 @@ const transcriptionEventHandler = async (event: AudioBytesEvent) => {
           console.error("Error converting raw string to buffer:", bufferItem.raw.substring(0, 50) + '...', error);
         }
       } else {
-        console.error("Invalid buffer item in activityEvents. Type:", typeof bufferItem, "Value:", bufferItem);
+        // Suppressed console.error
       }
     }
     const activityBuffer = Buffer.concat(activityEvents);
@@ -461,7 +461,7 @@ const transcriptionEventHandler = async (event: AudioBytesEvent) => {
     .filter(item => item !== null)  // Remove any null values
     .filter(item => {
       if (!Buffer.isBuffer(item)) {
-        console.error("Item is not a buffer:", item);
+        // Suppressed console.error
         return false;
       }
       return true;
@@ -493,7 +493,7 @@ const transcriptionEventHandler = async (event: AudioBytesEvent) => {
       newEventHandler(transcriptionEvent, event);
 
     } catch (error) {
-      console.error(`Whisper promise error: ${error}`);
+      // Suppressed console.error
     } finally {
       transcriptionMutex = false;
     }
@@ -535,7 +535,7 @@ const responseReflexEventHandler = async (event: TranscriptionEvent): Promise<vo
       }
       newEventHandler(responseReflexEvent, event);
     } else {
-      console.log('No transcription yet. Please speak into the microphone.')
+      // Suppressed: console.log('No transcription yet. Please speak into the microphone.')
     }
   }
 }
@@ -630,9 +630,9 @@ const audioProcess = spawn('bash', [audioListenerScript]);
 audioProcess.stdout.on('readable', () => {
   let data;
   while (data = audioProcess.stdout.read()) {
-    console.log('Data type:', typeof data);
+    // Suppressed: // Suppressed console.log
     const truncatedData = data.slice(0, 10);
-    console.log('Truncated data from audioProcess:', truncatedData);
+    // Suppressed: // Suppressed console.log
     newAudioBytesEvent(data);
   }
 });
