@@ -29,6 +29,13 @@ Wed Jun 14 2023
 
 *The intended audience for this project at the current state is people who are comfortable with hacking things together.*
 
+```
+pip install -q --upgrade torch torchvision torchaudio
+pip install -q git+https://github.com/huggingface/transformers
+pip install -q accelerate optimum
+pip install -q ipython-autotime
+```
+
 ### Using bundled bash script (experimental)
 ```
 chmod 775 build.sh
