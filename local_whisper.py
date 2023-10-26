@@ -23,17 +23,49 @@ def init_model(model_path='openai/whisper-large-v2'):
                             torch_dtype=dtype)
 
 def vad_function(audio_buffer):
-    print("VAD Audio Buffer\n", type(audio_buffer))
-    byte_values = audio_buffer['raw']
-
+    print("VAD Audio Buffer Type:", type(audio_buffer))
+    
+    # If it's a dictionary, print its keys
+    if isinstance(audio_buffer, dict):
+        print("Keys in audio_buffer:", audio_buffer.keys())
+        
+        # Check for the 'raw' key
+        if 'raw' not in audio_buffer:
+            print("Error: audioBuffer does not contain 'raw' key")
+            return None
+        
+        byte_values = audio_buffer['raw']
+        
+        # Print a truncated version of the buffer
+        print("Truncated byte_values:", byte_values[:10])
+    else:
+        print("audio_buffer is not a dictionary")
+        return None
 
     """Detects voice activity in the audio buffer."""
     return vad.is_speech(byte_values, sample_rate=16000)
 
 def asr_inference(audio_buffer):
-    print("ASR Audio Buffer\n", type(audio_buffer))
+    print("ASR Audio Buffer Type:", type(audio_buffer))
+    
+    # If it's a dictionary, print its keys
+    if isinstance(audio_buffer, dict):
+        print("Keys in audio_buffer:", audio_buffer.keys())
+        
+        # Check for the 'raw' key
+        if 'raw' not in audio_buffer:
+            print("Error: audioBuffer does not contain 'raw' key")
+            return None
+        
+        # Print a truncated version of the buffer
+        print("Truncated audio_buffer['raw']:", audio_buffer['raw'][:10])
+    else:
+        print("audio_buffer is not a dictionary")
+        return None
+
     """Performs ASR on the audio buffer."""
     return asr_pipeline(audio_buffer)
+
 
 def seconds_to_srt_time_format(seconds):
     hours = seconds // 3600
