@@ -127,13 +127,6 @@ if ('personaFile' in config) {
 // asr hot replacement module section
 
 async function voiceActivityDetection(audioBuffer: any) {
-  // Suppressed: console.log("Keys in audioBuffer:", Object.keys(audioBuffer));
-  // if (audioBuffer.raw) {
-  //   const truncatedBuffer = audioBuffer.raw.slice(0, 10);
-  //   // Suppressed: // Suppressed console.log
-  // } else {
-  //   // Suppressed console.error
-  // }
 
   // Check if audioBuffer has 'raw' key
   if (audioBuffer && Buffer.isBuffer(audioBuffer)) {
