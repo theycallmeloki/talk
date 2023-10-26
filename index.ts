@@ -279,6 +279,9 @@ async function asrInference(audioBuffer: any) {
               device = device,
               torch_dtype = dtype)
             decoded_buffer = base64.b64decode(audio_buffer)
+
+            # Convert model to better transformer for optimal performance
+            asr_pipeline.model = asr_pipeline.model.to_bettertransformer()
             
             # Convert the raw audio data to WAV format
             wav_buffer = raw_to_wav(decoded_buffer)
@@ -287,8 +290,8 @@ async function asrInference(audioBuffer: any) {
             result = asr_pipeline(wav_buffer)
             
             # Extract only the transcription text from the result
-            transcription = result  # Assuming the structure is a list with a dictionary inside
-            print(result)
+            transcription = result['text']
+            print(transcription)
 
             return transcription
     `;
@@ -491,13 +494,10 @@ const transcriptionEventHandler = async (event: AudioBytesEvent) => {
   // Ensure we only concatenate valid buffers
   const joinedBuffer = Buffer.concat(buffersToConcatenate as Buffer[]);
 
-  console.log("Joined Buffer Length:", joinedBuffer.length);
-  console.log("Transcription Mutex State Before:", transcriptionMutex);
 
   if (!transcriptionMutex && joinedBuffer.length > ONE_SECOND) {
     try {
       transcriptionMutex = true;
-      console.log("Transcription Mutex State After Setting:", transcriptionMutex);
       const rawTranscription = await asrInference(joinedBuffer) || "";
 
       let transcription = rawTranscription.replace(/\s*\[[^\]]*\]\s*|\s*\([^)]*\)\s*/g, ''); // clear up text in brackets
