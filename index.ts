@@ -30,44 +30,16 @@ def vad_function(audio_buffer):
     print("VAD Audio Buffer Type:", type(audio_buffer))
     
     # If it's a dictionary, print its keys
-    if isinstance(audio_buffer, dict):
-        print("Keys in audio_buffer:", audio_buffer.keys())
-
-        if 'raw' in audio_buffer:
-            truncated_buffer = base64.b64decode(audio_buffer['raw'])[:10]
-            print("Truncated byte_values from audio_buffer:", truncated_buffer)
-        else:
-            print("Error: audioBuffer does not contain 'raw' key")
-        
-        # Check for the 'raw' key
-        byte_values = base64.b64decode(audio_buffer)
-        
-        # Print a truncated version of the buffer
-        print("Truncated byte_values:", byte_values[:10])
-    else:
-        print("audio_buffer is not a dictionary")
-        return None
+    truncated_buffer = base64.b64decode(audio_buffer)[:10]
+    print("Truncated byte_values from audio_buffer:", truncated_buffer)
 
     """Detects voice activity in the audio buffer."""
-    return vad.is_speech(byte_values, sample_rate=16000)
+    return vad.is_speech(audio_buffer, sample_rate=16000)
 
 def asr_inference(audio_buffer):
     print("ASR Audio Buffer Type:", type(audio_buffer))
     
-    # If it's a dictionary, print its keys
-    if isinstance(audio_buffer, dict):
-        print("Keys in audio_buffer:", audio_buffer.keys())
-        
-        # Check for the 'raw' key
-        if 'raw' not in audio_buffer:
-            print("Error: audioBuffer does not contain 'raw' key")
-            return None
-        
-        # Print a truncated version of the buffer
-        print("Truncated audio_buffer['raw']:", audio_buffer['raw'][:10])
-    else:
-        print("audio_buffer is not a dictionary")
-        return None
+    print("Truncated audio_buffer:", audio_buffer[:10])
 
     """Performs ASR on the audio buffer."""
     return asr_pipeline(audio_buffer)
