@@ -198,27 +198,6 @@ async function voiceActivityDetection(audioBuffer: any) {
   if (audioBuffer && Buffer.isBuffer(audioBuffer)) {
     const base64EncodedBuffer = audioBuffer.toString('base64');
 
-    // await python.ex`
-    //     import base64
-    //     import webrtcvad
-    //     vad = webrtcvad.Vad()
-    //     vad.set_mode(1)
-    //     def vad_function(audio_buffer):
-    //         decoded_buffer = base64.b64decode(audio_buffer)
-    //         # Frame size in bytes
-    //         FRAME_SIZE = 960  # 10 ms frame for 16 kHz
-
-    //         # Split buffer into frames of FRAME_SIZE
-    //         frames = [decoded_buffer[i:i+FRAME_SIZE] for i in range(0, len(decoded_buffer), FRAME_SIZE)]
-
-    //         # Process each frame and check for speech
-    //         for frame in frames:
-    //             if len(frame) == FRAME_SIZE and vad.is_speech(frame, sample_rate=16000):
-    //                 return True
-
-    //         return False
-    // `;
-
     return await python.ex`vad_function(${base64EncodedBuffer})`;
   } else {
     // Suppressed console.error
@@ -232,53 +211,6 @@ async function asrInference(audioBuffer: any) {
   if (audioBuffer && Buffer.isBuffer(audioBuffer)) {
 
     const base64EncodedBuffer = audioBuffer.toString('base64');
-
-    // await python.ex`
-    //     from transformers import pipeline
-    //     from pydub import AudioSegment
-    //     import io
-    //     import torch
-    //     import base64
-
-    //     model_path = 'openai/whisper-large-v2'
-    //     device = 'cuda:0'
-    //     dtype = torch.float32
-
-    //     def raw_to_wav(raw_data, sample_rate=16000, sample_width=2):
-    //         audio = AudioSegment(
-    //             raw_data,
-    //             sample_width=sample_width,
-    //             frame_rate=sample_rate,
-    //             channels=1
-    //         )
-    //         # Use an in-memory bytes buffer to store the WAV data
-    //         buffer = io.BytesIO()
-    //         audio.export(buffer, format="wav")
-    //         return buffer.getvalue()
-
-    //     def asr_inference(audio_buffer):
-    //         global asr_pipeline
-    //         asr_pipeline = pipeline("automatic-speech-recognition",
-    //           model = model_path,
-    //           device = device,
-    //           torch_dtype = dtype)
-    //         decoded_buffer = base64.b64decode(audio_buffer)
-
-    //         # Convert model to better transformer for optimal performance
-    //         asr_pipeline.model = asr_pipeline.model.to_bettertransformer()
-            
-    //         # Convert the raw audio data to WAV format
-    //         wav_buffer = raw_to_wav(decoded_buffer)
-
-    //         # Get the result from the ASR pipeline
-    //         result = asr_pipeline(wav_buffer)
-            
-    //         # Extract only the transcription text from the result
-    //         transcription = result['text']
-    //         print(transcription)
-
-    //         return transcription
-    // `;
 
     return await python.ex`asr_inference(${base64EncodedBuffer})
     `;
