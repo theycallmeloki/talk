@@ -10,6 +10,9 @@ Is this project useful to you? Give me a [**⬆money upvote!⬆**](https://donat
 Right now, we have been testing this on linux + cuda. The project is still at an early stage, and requires a lot of elbow grease to get running. We'll keep on making it better as time goes on!
 
 ### Changelog
+Sun Nov 5 2023 - Loki
+- using distil whisper so we should be faster than the insanely fast whisper
+
 Thurs Oct 25 2023 - Loki
 - Talk now uses insanely fast whisper (whisper large v2)
 - Breaks most functionality, rough plan
