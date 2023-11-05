@@ -91,14 +91,21 @@ const eventlog: EventLog = {
   await python.ex`
     import base64
     import webrtcvad
-    from transformers import pipeline
+    from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor
     from pydub import AudioSegment
     import io
     import torch
     
-    model_path = 'openai/whisper-large-v2'
-    device = 'cuda:0'
-    dtype = torch.float32
+    model_id = 'distil-whisper/distil-large-v2'
+    device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+    torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+
+    model = AutoModelForSpeechSeq2Seq.from_pretrained(
+      model_id, torch_dtype=torch_dtype, low_cpu_mem_usage=True, use_safetensors=True, use_flash_attention_2=False
+    )
+    model.to(device)
+    processor = AutoProcessor.from_pretrained(model_id)
+
     
     vad = webrtcvad.Vad()
     vad.set_mode(1)
@@ -116,27 +123,23 @@ const eventlog: EventLog = {
         return buffer.getvalue()
     
     def asr_inference(audio_buffer):
-        global asr_pipeline
-        asr_pipeline = pipeline("automatic-speech-recognition",
-          model = model_path,
-          device = device,
-          torch_dtype = dtype)
         decoded_buffer = base64.b64decode(audio_buffer)
-
-        # Convert model to better transformer for optimal performance
-        asr_pipeline.model = asr_pipeline.model.to_bettertransformer()
-        
-        # Convert the raw audio data to WAV format
         wav_buffer = raw_to_wav(decoded_buffer)
 
-        # Get the result from the ASR pipeline
-        result = asr_pipeline(wav_buffer)
-        
-        # Extract only the transcription text from the result
-        transcription = result['text']
-        print(transcription)
+        # Preprocess the audio file (wav format is required for the processor)
+        input_values = processor(wav_buffer, return_tensors="pt", sampling_rate=16000).input_values
+        input_values = input_values.to(device)
 
-        return transcription
+        # Perform the speech recognition
+        with torch.no_grad():
+            logits = model(input_values).logits
+
+        # Retrieve the predicted ids and decode them to text
+        predicted_ids = torch.argmax(logits, dim=-1)
+        transcription = processor.batch_decode(predicted_ids)
+
+        print(transcription[0])
+        return transcription[0]
 
     def vad_function(audio_buffer):
         decoded_buffer = base64.b64decode(audio_buffer)
